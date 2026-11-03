@@ -1,0 +1,37 @@
+{
+  "name": "iti-logbook",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "migrate:copa": "node scripts/migrate-copa.mjs",
+    "test:db": "node tests/db.test.mjs",
+    "build:shim": "VITE_USE_SHIM=1 vite build --outDir dist-shim",
+    "test:e2e": "npm run build:shim --silent && node tests/e2e.mjs",
+    "test:migrate": "node tests/migrate.test.mjs",
+    "test": "npm run test:db && npm run test:migrate && npm run test:e2e"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "@tiptap/extension-image": "^3.32.2",
+    "@tiptap/extension-table": "^3.32.2",
+    "@tiptap/extension-text-align": "^3.32.2",
+    "@tiptap/pm": "^3.32.2",
+    "@tiptap/react": "^3.32.2",
+    "@tiptap/starter-kit": "^3.32.2",
+    "dompurify": "^3.4.17",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-router-dom": "^7.18.5"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.14",
+    "@vitejs/plugin-react": "^6.2.1",
+    "playwright": "^1.56.1",
+    "vite": "^8.3.5",
+    "xlsx": "^0.18.5"
+  }
+}
