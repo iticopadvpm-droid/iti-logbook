@@ -36,10 +36,7 @@ export function AuthPage() {
         if (f.password.length < 8) throw new Error('Password must be at least 8 characters.')
         if (f.password !== f.password2) throw new Error('The two passwords do not match.')
         if (!f.name.trim()) throw new Error('Please enter your name.')
-        <Field label="Your ITI (optional)" hint="Type your ITI name. Leave blank if you are the system administrator.">
-  <input value={f.iti} onChange={set('iti')} placeholder="e.g. Govt. ITI Dhanuvachapuram" autoComplete="organization" />
-</Field>
-        const { data, error } = await a.signUp(f.email.trim(), f.password, { full_name: f.name.trim(), requested_iti: f.iti, note: f.note.trim() })
+        const { data, error } = await a.signUp(f.email.trim(), f.password, { full_name: f.name.trim(), requested_iti: f.iti || null, note: f.note.trim() })
         if (error) throw new Error(error.message)
         if (!data.session) setMsg('Account created. Check your e-mail and click the confirmation link, then sign in. Your ITI administrator must also approve you.')
       } else {
@@ -59,11 +56,8 @@ export function AuthPage() {
         {msg && <div className="notice">{msg}</div>}
         {mode === 'up' && <>
           <Field label="Full name"><input value={f.name} onChange={set('name')} autoComplete="name" required /></Field>
-          <Field label="Your ITI" hint="An administrator of this ITI will approve your account.">
-            <select value={f.iti} onChange={set('iti')} required>
-              <option value="">— choose —</option>
-              {itis.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
-            </select>
+          <Field label="Your ITI (optional)" hint="Type your ITI name. Leave blank if you are the system administrator.">
+            <input value={f.iti} onChange={set('iti')} placeholder="e.g. Govt. ITI Dhanuvachapuram" autoComplete="organization" />
           </Field>
         </>}
         <Field label="E-mail"><input type="email" value={f.email} onChange={set('email')} autoComplete="email" required /></Field>
