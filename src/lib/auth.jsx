@@ -54,7 +54,7 @@ export function AuthProvider({ children }) {
       (m.role === 'iti_admin' || (m.role === 'instructor' && (!m.trade_id || m.trade_id === tr.id)))))
     return {
       ...s, recovery, setRecovery, refresh,
-      isSuper, adminItiIds, isAdmin: adminItiIds.length > 0, canEditTrade,
+      isSuper, adminItiIds, isAdmin: isSuper || adminItiIds.length > 0, canEditTrade,
       pending: !!s.session && memberships.length === 0,
       itiOf: (id) => itis.find((i) => i.id === id),
       tradeOf: (id) => trades.find((t) => t.id === id),
