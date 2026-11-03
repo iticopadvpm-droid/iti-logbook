@@ -36,7 +36,9 @@ export function AuthPage() {
         if (f.password.length < 8) throw new Error('Password must be at least 8 characters.')
         if (f.password !== f.password2) throw new Error('The two passwords do not match.')
         if (!f.name.trim()) throw new Error('Please enter your name.')
-        if (!f.iti) throw new Error('Please choose your ITI.')
+        <Field label="Your ITI (optional)" hint="Type your ITI name. Leave blank if you are the system administrator.">
+  <input value={f.iti} onChange={set('iti')} placeholder="e.g. Govt. ITI Dhanuvachapuram" autoComplete="organization" />
+</Field>
         const { data, error } = await a.signUp(f.email.trim(), f.password, { full_name: f.name.trim(), requested_iti: f.iti, note: f.note.trim() })
         if (error) throw new Error(error.message)
         if (!data.session) setMsg('Account created. Check your e-mail and click the confirmation link, then sign in. Your ITI administrator must also approve you.')
