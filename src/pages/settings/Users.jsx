@@ -4,6 +4,39 @@ import { useAuth } from '../../lib/auth'
 import { supabase } from '../../lib/supabase'
 import { Badge, Empty, Field, Modal, Spinner, useAction, useConfirm } from '../../components/ui'
 
+function OpenRegToggle({ onChanged }) {
+  const a = useAuth()
+  const [enabled, setEnabled] = useState(a.openRegistration)
+  const [run, busy] = useAction()
+  if (!a.isSuper) return null
+  async function toggle() {
+    const next = !enabled
+    run(async () => {
+      await supabase.from('site_settings').upsert({ key: 'open_registration', value: String(next), updated_by: a.session.user.id }, { onConflict: 'key' })
+      setEnabled(next)
+      onChanged?.()
+    }, next ? 'Open registration ON' : 'Open registration OFF')
+  }
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <div className="card-head"><h2>Registration setting</h2></div>
+      <div className="row between gap" style={{ padding: '8px 0' }}>
+        <div>
+          <b>{enabled ? '🔓 Open registration is ON' : '🔒 Approval required (default)'}</b>
+          <div className="small muted" style={{ marginTop: 4 }}>
+            {enabled
+              ? 'Anyone who signs up is automatically approved as Instructor for their chosen ITI. No admin action needed.'
+              : 'New accounts wait in the approval queue below until an admin gives them a role.'}
+          </div>
+        </div>
+        <button className="btn" disabled={busy} onClick={toggle}>
+          {enabled ? 'Switch to approval mode' : 'Allow open registration'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 const ROLES = { super_admin: 'Super admin', iti_admin: 'ITI admin', instructor: 'Instructor', viewer: 'Viewer (read only)' }
 const HELP = {
   iti_admin: 'Manages everything in the ITI: trades, people, content.',
@@ -67,6 +100,7 @@ export default function Users() {
 
   return (
     <>
+      <OpenRegToggle onChanged={load} />
       <div className="card">
         <div className="card-head"><h2>Waiting for approval <Badge tone={pending.length ? 'warn' : ''}>{pending.length}</Badge></h2></div>
         {!pending.length ? <p className="muted">Nobody is waiting. New people appear here after they create an account.</p> : pending.map((p) => (

@@ -4,7 +4,7 @@ import { supabase } from './supabase'
 const Ctx = createContext(null)
 export const useAuth = () => useContext(Ctx)
 
-const EMPTY = { loading: true, session: null, profile: null, memberships: [], itis: [], trades: [] }
+const EMPTY = { loading: true, session: null, profile: null, memberships: [], itis: [], trades: [], settings: {} }
 
 export function AuthProvider({ children }) {
   const [s, setS] = useState(EMPTY)
@@ -15,16 +15,18 @@ export function AuthProvider({ children }) {
     const mine = ++seq.current
     if (!session) { setS({ ...EMPTY, loading: false }); return }
     const uid = session.user.id
-    const [p, m, i, t] = await Promise.all([
+    const [p, m, i, t, ss] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', uid).maybeSingle(),
       supabase.from('memberships').select('*').eq('user_id', uid),
       supabase.from('itis').select('*').order('name'),
       supabase.from('trades').select('*').order('name'),
+      supabase.from('site_settings').select('key,value'),
     ])
     if (mine !== seq.current) return
+    const settings = Object.fromEntries((ss.data || []).map((r) => [r.key, r.value]))
     setS({
       loading: false, session,
-      profile: p.data, memberships: m.data || [], itis: i.data || [], trades: t.data || [],
+      profile: p.data, memberships: m.data || [], itis: i.data || [], trades: t.data || [], settings,
     })
   }, [])
 
@@ -55,6 +57,7 @@ export function AuthProvider({ children }) {
     return {
       ...s, recovery, setRecovery, refresh,
       isSuper, adminItiIds, isAdmin: isSuper || adminItiIds.length > 0, canEditTrade,
+      openRegistration: s.settings?.open_registration === 'true',
       pending: !!s.session && memberships.length === 0,
       itiOf: (id) => itis.find((i) => i.id === id),
       tradeOf: (id) => trades.find((t) => t.id === id),

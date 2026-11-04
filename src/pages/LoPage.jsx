@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { del, ins, insMany, upd } from '../lib/api'
 import { useData } from '../lib/data'
@@ -7,6 +7,49 @@ import { parseBulkLines } from '../lib/util'
 import { Badge, Empty, Field, Modal, useAction, useConfirm } from '../components/ui'
 import LoForm from '../components/LoForm'
 import PublishModal from '../components/PublishModal'
+
+// ── number suggestion (like Diary) ──────────────────────────────────────
+function Suggest({ anchor, items, index, onPick }) {
+  if (!anchor || !items.length) return null
+  const r = anchor.getBoundingClientRect()
+  const w = Math.min(380, window.innerWidth - 16)
+  const h = Math.min(220, items.length * 34)
+  const top = r.bottom + h + 8 > window.innerHeight && r.top > h + 8 ? r.top - h - 2 : r.bottom + 2
+  return (
+    <div className="suggest" style={{ left: Math.max(8, Math.min(r.left, window.innerWidth - w - 8)), top, width: w, position: 'fixed', zIndex: 999, background: 'var(--bg)', border: '1px solid var(--soft)', borderRadius: 6, boxShadow: '0 4px 16px rgba(0,0,0,.12)', overflow: 'auto' }}>
+      {items.map((x, i) => (
+        <div key={x.id} style={{ padding: '6px 12px', cursor: 'pointer', background: i === index ? 'var(--accent-soft)' : undefined, display: 'flex', gap: 8 }}
+          onMouseDown={(e) => { e.preventDefault(); onPick(x) }}>
+          <b style={{ minWidth: 50, color: 'var(--accent)' }}>{x.number}</b><span>{x.title}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function useSuggestLo(list) {
+  const [s, setS] = useState({ el: null, q: '', i: -1, pick: null })
+  const items = useMemo(() => {
+    if (!s.el) return []
+    const q = s.q.trim().toLowerCase()
+    return list.filter((x) => !q || x.number.toLowerCase().startsWith(q) || x.title.toLowerCase().includes(q)).slice(0, 40)
+  }, [s, list])
+  useEffect(() => { const h = () => setS((x) => ({ ...x, el: null })); window.addEventListener('scroll', h, true); return () => window.removeEventListener('scroll', h, true) }, [])
+  const choose = (it) => { const p = s.pick; setS((x) => ({ ...x, el: null, i: -1 })); p?.(it) }
+  return {
+    open: (el, pick) => setS({ el, q: el.value, i: -1, pick }),
+    type: (el, pick) => setS({ el, q: el.value, i: -1, pick }),
+    close: () => setS((x) => ({ ...x, el: null, i: -1 })),
+    key: (e) => {
+      if (!s.el || !items.length) return
+      if (e.key === 'ArrowDown') { e.preventDefault(); setS({ ...s, i: Math.min(items.length - 1, s.i + 1) }) }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); setS({ ...s, i: Math.max(0, s.i - 1) }) }
+      else if (e.key === 'Enter' && s.i >= 0) { e.preventDefault(); choose(items[s.i]) }
+      else if (e.key === 'Escape') setS({ ...s, el: null })
+    },
+    node: <Suggest anchor={s.el} items={items} index={s.i} onPick={choose} />,
+  }
+}
 
 const nextNumber = (lo, items) => {
   const used = items.map((i) => i.number.split('.')).filter((p) => p[0] === lo.number && p.length === 2).map((p) => parseInt(p[1], 10) || 0)
@@ -17,6 +60,9 @@ function ItemForm({ lo, kind, item, items, onClose }) {
   const d = useData()
   const [f, setF] = useState({ number: item?.number ?? nextNumber(lo, items), title: item?.title ?? '', hours: item?.hours ?? '' })
   const [run, busy] = useAction()
+  // Suggestion list: all items of same kind across this trade for reference
+  const allItems = useMemo(() => d.items.filter((i) => i.kind === kind && i.lo_id !== lo.id), [d.items, kind, lo.id])
+  const sg = useSuggestLo(allItems)
   const save = (e) => {
     e.preventDefault()
     run(async () => {
@@ -28,10 +74,22 @@ function ItemForm({ lo, kind, item, items, onClose }) {
     }, item ? 'Saved' : 'Added')
   }
   const word = kind === 'practical' ? 'job' : 'lesson'
+  const pickItem = (it) => {
+    const prevTitle = allItems.find((x) => x.number === f.number)?.title
+    setF((v) => ({ ...v, number: it.number, title: !v.title || v.title === prevTitle ? it.title : v.title }))
+  }
   return (
     <Modal title={`${item ? 'Edit' : 'Add'} ${word}`} onClose={onClose} small>
+      {sg.node}
       <form onSubmit={save}>
-        <Field label="Number" hint="Text, so 1.10 stays different from 1.1."><input autoFocus value={f.number} onChange={(e) => setF({ ...f, number: e.target.value })} required /></Field>
+        <Field label="Number" hint="Type a number to look up from other LOs, or enter a new one.">
+          <input autoFocus value={f.number} autoComplete="off"
+            onChange={(e) => { setF({ ...f, number: e.target.value }); sg.type(e.target, pickItem) }}
+            onFocus={(e) => sg.open(e.target, pickItem)}
+            onKeyDown={sg.key}
+            onBlur={() => sg.close()}
+            required />
+        </Field>
         <Field label={kind === 'practical' ? 'Job name' : 'Lesson name'}><input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} required /></Field>
         <Field label="Hours (optional)"><input type="number" min="0" step="0.5" value={f.hours} onChange={(e) => setF({ ...f, hours: e.target.value })} /></Field>
         <div className="row end gap"><button type="button" className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy}>Save</button></div>

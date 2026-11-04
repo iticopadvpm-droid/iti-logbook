@@ -7,6 +7,7 @@ import Itis from './settings/Itis'
 import Users from './settings/Users'
 import Prefs from './settings/Prefs'
 import Backup from './settings/Backup'
+import Splitup from './settings/Splitup'
 
 export default function Settings({ onTrade }) {
   const { tab = 'account' } = useParams()
@@ -17,6 +18,7 @@ export default function Settings({ onTrade }) {
     a.isAdmin && { id: 'trades', label: 'Trades' },
     a.isAdmin && { id: 'itis', label: 'ITIs' },
     a.isAdmin && { id: 'users', label: 'Users & access' },
+    a.trades.some((t) => a.canEditTrade(t)) && { id: 'splitup', label: '📋 Split-up' },
     { id: 'prefs', label: 'This computer' },
     a.trades.some((t) => a.canEditTrade(t)) && { id: 'backup', label: 'Backup' },
   ].filter(Boolean)
@@ -29,6 +31,7 @@ export default function Settings({ onTrade }) {
       {cur === 'trades' && <Trades onTrade={onTrade} />}
       {cur === 'itis' && <Itis />}
       {cur === 'users' && <Users />}
+      {cur === 'splitup' && <Splitup />}
       {cur === 'prefs' && <Prefs onTrade={onTrade} />}
       {cur === 'backup' && <Backup />}
     </>

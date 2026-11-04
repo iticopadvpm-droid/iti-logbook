@@ -24,7 +24,11 @@ export function AuthPage() {
   const [run, busy] = useAction()
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
 
-  useEffect(() => { supabase.from('itis').select('id,name').order('name').then(({ data }) => setItis(data || [])) }, [])
+  const [openReg, setOpenReg] = useState(false)
+  useEffect(() => {
+    supabase.from('itis').select('id,name').order('name').then(({ data }) => setItis(data || []))
+    supabase.from('site_settings').select('value').eq('key', 'open_registration').maybeSingle().then(({ data }) => setOpenReg(data?.value === 'true'))
+  }, [])
 
   const submit = (e) => {
     e.preventDefault(); setMsg('')
@@ -38,7 +42,9 @@ export function AuthPage() {
         if (!f.name.trim()) throw new Error('Please enter your name.')
         const { data, error } = await a.signUp(f.email.trim(), f.password, { full_name: f.name.trim(), requested_iti: f.iti || null, note: f.note.trim() })
         if (error) throw new Error(error.message)
-        if (!data.session) setMsg('Account created. Check your e-mail and click the confirmation link, then sign in. Your ITI administrator must also approve you.')
+        if (!data.session) setMsg(openReg
+          ? 'Account created. Check your e-mail and click the confirmation link, then sign in. You will be granted access automatically.'
+          : 'Account created. Check your e-mail and click the confirmation link, then sign in. Your ITI administrator must also approve you.')
       } else {
         const { error } = await a.resetPassword(f.email.trim())
         if (error) throw new Error(error.message)

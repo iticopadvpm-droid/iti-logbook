@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { del, ins, upd } from '../lib/api'
 import { useData } from '../lib/data'
@@ -28,6 +28,50 @@ function ItemForm({ item, onClose }) {
   )
 }
 
+// ── Suggest box (same as Diary pattern) ───────────────────────────────
+function SuggestBox({ anchor, items, index, onPick }) {
+  if (!anchor || !items.length) return null
+  const r = anchor.getBoundingClientRect()
+  const w = Math.min(380, window.innerWidth - 16)
+  const h = Math.min(220, items.length * 34)
+  const top = r.bottom + h + 8 > window.innerHeight && r.top > h + 8 ? r.top - h - 2 : r.bottom + 2
+  return (
+    <div style={{ position: 'fixed', zIndex: 999, background: 'var(--bg)', border: '1px solid var(--soft)', borderRadius: 6, boxShadow: '0 4px 16px rgba(0,0,0,.12)', overflow: 'auto', left: Math.max(8, Math.min(r.left, window.innerWidth - w - 8)), top, width: w }}>
+      {items.map((x, i) => (
+        <div key={x.id} style={{ padding: '6px 12px', cursor: 'pointer', background: i === index ? 'var(--accent-soft)' : undefined, display: 'flex', gap: 8 }}
+          onMouseDown={(e) => { e.preventDefault(); onPick(x) }}>
+          <b style={{ minWidth: 50, color: 'var(--accent)' }}>{x.number}</b><span>{x.name || x.title}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function useTaskSuggest(list) {
+  const [s, setS] = useState({ el: null, q: '', i: -1, pick: null })
+  const items = useMemo(() => {
+    if (!s.el) return []
+    const q = s.q.trim().toLowerCase()
+    return list.filter((x) => !q || x.number.toLowerCase().startsWith(q) || (x.name || x.title || '').toLowerCase().includes(q)).slice(0, 40)
+  }, [s, list])
+  useEffect(() => { const h = () => setS((x) => ({ ...x, el: null })); window.addEventListener('scroll', h, true); return () => window.removeEventListener('scroll', h, true) }, [])
+  const choose = (it) => { const p = s.pick; setS((x) => ({ ...x, el: null, i: -1 })); p?.(it) }
+  return {
+    open: (el, pick) => setS({ el, q: el.value, i: -1, pick }),
+    type: (el, pick) => setS({ el, q: el.value, i: -1, pick }),
+    close: () => setS((x) => ({ ...x, el: null, i: -1 })),
+    key: (e) => {
+      if (!s.el || !items.length) return
+      if (e.key === 'ArrowDown') { e.preventDefault(); setS({ ...s, i: Math.min(items.length - 1, s.i + 1) }) }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); setS({ ...s, i: Math.max(0, s.i - 1) }) }
+      else if (e.key === 'Enter' && s.i >= 0) { e.preventDefault(); choose(items[s.i]) }
+      else if (e.key === 'Escape') setS({ ...s, el: null })
+    },
+    node: (anchor, idx) => <SuggestBox anchor={anchor} items={items} index={idx} onPick={choose} />,
+    el: s.el, i: s.i, items,
+  }
+}
+
 const TASK_FIELDS = [['aim', 'Aim'], ['procedure', 'Procedure'], ['result', 'Result'], ['conclusion', 'Conclusion']]
 
 function TaskForm({ item, task, count, onClose }) {
@@ -36,8 +80,16 @@ function TaskForm({ item, task, count, onClose }) {
   const [hist, setHist] = useState(false)
   const [run, busy] = useAction()
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
+  // All tasks across this trade for suggestions
+  const allTasks = useMemo(() => d.tasks || [], [d.tasks])
+  const sg = useTaskSuggest(allTasks)
+  const pickTask = (it) => {
+    const prevName = allTasks.find((x) => x.number === f.number)?.name
+    setF((v) => ({ ...v, number: it.number, name: !v.name || v.name === prevName ? it.name : v.name }))
+  }
   return (
     <Modal title={task ? `Edit task ${task.number}` : 'Add task'} onClose={onClose} wide>
+      {sg.el && sg.node(sg.el, sg.i)}
       <form onSubmit={(e) => { e.preventDefault(); run(async () => {
         const row = { ...f, number: f.number.trim(), name: f.name.trim() }
         if (!row.number || !row.name) throw new Error('Number and name are required.')
@@ -45,7 +97,13 @@ function TaskForm({ item, task, count, onClose }) {
         await d.reload(); onClose()
       }, 'Task saved') }}>
         <div className="form-grid" style={{ gridTemplateColumns: '120px 1fr' }}>
-          <Field label="Task no."><input value={f.number} onChange={set('number')} required /></Field>
+          <Field label="Task no.">
+            <input value={f.number} autoComplete="off" required
+              onChange={(e) => { setF({ ...f, number: e.target.value }); sg.type(e.target, pickTask) }}
+              onFocus={(e) => sg.open(e.target, pickTask)}
+              onKeyDown={sg.key}
+              onBlur={() => sg.close()} />
+          </Field>
           <Field label="Task name"><input autoFocus value={f.name} onChange={set('name')} required /></Field>
         </div>
         {TASK_FIELDS.map(([k, label]) => <Field key={k} label={label}><textarea rows={k === 'procedure' ? 7 : 3} value={f[k]} onChange={set(k)} /></Field>)}
